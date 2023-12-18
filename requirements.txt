@@ -1,0 +1,6 @@
+opencv-contrib-python==4.6.0.66
+opencv-python-headless==4.6.0.66
+pyyaml==5.4.1
+tqdm==4.64.0
+flake8
+yapf

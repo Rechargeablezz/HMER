@@ -1,0 +1,11 @@
+vis/
+img/
+train_img/
+logs/
+14_val_img/
+__pycache__/
+checkpoints/
+models/__pycache__
+AttDecoder_bad_case.json
+bad_case.txt
+datasets/
