@@ -68,9 +68,9 @@ if params['finetune']:
 if torch.cuda.device_count() > 1:
     model = nn.DataParallel(model)
 if not args.check:
-    if not os.path.exists(os.path.join(params['checkpoint_dir'], model.module.name)):  # checkpoint_dir\model.name不存在就创建目录
-        os.makedirs(os.path.join(params['checkpoint_dir'], model.module.name), exist_ok=True)
-    os.system(f'cp {config_file} {os.path.join(params["checkpoint_dir"], model.module.name, model.module.name)}.yaml')  # 对应.yaml文件
+    if not os.path.exists(os.path.join(params['checkpoint_dir'], model.name)):  # checkpoint_dir\model.name不存在就创建目录
+        os.makedirs(os.path.join(params['checkpoint_dir'], model.name), exist_ok=True)
+    os.system(f'cp {config_file} {os.path.join(params["checkpoint_dir"], model.name, model.name)}.yaml')  # 对应.yaml文件
 
 """在CROHME上训练"""
 if args.dataset == 'CROHME' or args.dataset == 'CROHME2':
@@ -80,7 +80,7 @@ if args.dataset == 'CROHME' or args.dataset == 'CROHME2':
         train_loss, train_word_score, train_exprate = train(params, model, optimizer, epoch, train_loader, writer=writer)   # train_loss, train_word_score, train_exprate
 
         if epoch >= params['valid_start']:  # valid_start: 0
-            eval_loss, eval_word_score, eval_exprate = eval(params, model.module, epoch, eval_loader, writer=writer)  # eval_loss, eval_word_score, eval_exprate
+            eval_loss, eval_word_score, eval_exprate = eval(params, model, epoch, eval_loader, writer=writer)  # eval_loss, eval_word_score, eval_exprate
             print(f'Epoch: {epoch+1} loss: {eval_loss:.4f} word score: {eval_word_score:.4f} ExpRate: {eval_exprate:.4f}')
             # 50 epoch 存一次
             # if(epoch % 50 == 0) : save_checkpoint(model.module, optimizer, eval_word_score, eval_exprate, epoch+1,

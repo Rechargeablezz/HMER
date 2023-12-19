@@ -9,3 +9,4 @@ models/__pycache__
 AttDecoder_bad_case.json
 bad_case.txt
 datasets/
+.vscode/
