@@ -87,7 +87,7 @@ if args.dataset == 'CROHME' or args.dataset == 'CROHME2':
             #                                 optimizer_save=params['optimizer_save'], path=params['checkpoint_dir'])
             if eval_exprate > min_score and not args.check and epoch >= params['save_start']:  # 存档条件
                 min_score = eval_exprate
-                save_checkpoint(model.module, optimizer, eval_word_score, eval_exprate, epoch + 1,
+                save_checkpoint(model, optimizer, eval_word_score, eval_exprate, epoch + 1,
                                 optimizer_save=params['optimizer_save'], path=params['checkpoint_dir'])
         # gc.collect()
         # torch.cuda.empty_cache()
