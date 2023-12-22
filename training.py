@@ -11,20 +11,18 @@ def train(params, model, optimizer, epoch, train_loader, writer=None):
     word_right, exp_right, length, cal_num = 0, 0, 0, 0
 
     with tqdm(train_loader, total=len(train_loader) // params['train_parts'], mininterval=3.0) as pbar:
-        for batch_idx, (images, image_masks, labels, label_masks, labels2, label_masks2) in enumerate(pbar):
-            images, image_masks, labels, label_masks, labels2, label_masks2 = images.to(device), image_masks.to(
-                device), labels.to(device), label_masks.to(device), labels2.to(device), label_masks2.to(device),
+        for batch_idx, (images, image_masks, labels, label_masks) in enumerate(pbar):
+            images, image_masks, labels, label_masks = images.to(device), image_masks.to(
+                device), labels.to(device), label_masks.to(device),
             batch, time = labels.shape[:2]
             if 'lr_decay' not in params or params['lr_decay'] == 'cosine':
                 update_lr(optimizer, epoch, batch_idx, len(train_loader), params['epochs'], params['lr'])
             optimizer.zero_grad()
             # with torch.cuda.amp.autocast():
-            # probs, counting_preds, word_loss, counting_loss = model(images, image_masks, labels, label_masks)
-            probs, counting_preds, word_loss, counting_loss, kl_loss = model(images, image_masks, labels, label_masks, labels2, label_masks2)
+            probs, counting_preds, word_loss, counting_loss = model(images, image_masks, labels, label_masks)
             word_loss = word_loss.mean()
             counting_loss = counting_loss.mean()
-            kl_loss = kl_loss.mean()
-            loss = word_loss + counting_loss + 0.5 * kl_loss if epoch > 100 or params['finetune'] else word_loss + counting_loss
+            loss = word_loss + counting_loss
             # scaler.scale(loss).backward()
             # scaler.step(optimizer)
             # scaler.update()
@@ -48,8 +46,6 @@ def train(params, model, optimizer, epoch, train_loader, writer=None):
                 current_step = epoch * len(train_loader) // params['train_parts'] + batch_idx + 1
                 writer.add_scalar('train/word_loss', word_loss.item(), current_step)
                 writer.add_scalar('train/counting_loss', counting_loss.item(), current_step)
-                # writer.add_scalar('train/counting_loss2', counting_loss2.item(), current_step)
-                writer.add_scalar('train/kl_loss', kl_loss.item(), current_step)
                 writer.add_scalar('train/loss', loss.item(), current_step)
                 writer.add_scalar('train/WordRate', wordRate, current_step)
                 writer.add_scalar('train/ExpRate', ExpRate, current_step)
@@ -58,7 +54,7 @@ def train(params, model, optimizer, epoch, train_loader, writer=None):
                 # if (current_step % 100 == 0):
                 #     writer.add_image('train/imgs', images[0], current_step)
                 #     writer.add_images('train/imgs', images, current_step)
-            pbar.set_description(f'{epoch+1} word_loss:{word_loss.item():.4f} counting_loss:{counting_loss.item():.4f} kl_loss:{kl_loss.item():.4f} WRate:{word_right / length:.4f} '
+            pbar.set_description(f'{epoch+1} word_loss:{word_loss.item():.4f} counting_loss:{counting_loss.item():.4f} WRate:{word_right / length:.4f} '
                                  f'ERate:{exp_right / cal_num:.4f}')
             if batch_idx >= len(train_loader) // params['train_parts']:
                 break
@@ -78,16 +74,14 @@ def eval(params, model, epoch, eval_loader, writer=None):
     word_right, exp_right, length, cal_num = 0, 0, 0, 0
 
     with tqdm(eval_loader, total=len(eval_loader) // params['valid_parts'], mininterval=1.0) as pbar, torch.no_grad():
-        for batch_idx, (images, image_masks, labels, label_masks, labels2, label_masks2) in enumerate(pbar):
-            images, image_masks, labels, label_masks, labels2, label_masks2 = images.to(device), image_masks.to(
-                device), labels.to(device), label_masks.to(device), labels2.to(device), label_masks2.to(device)
+        for batch_idx, (images, image_masks, labels, label_masks) in enumerate(pbar):
+            images, image_masks, labels, label_masks = images.to(device), image_masks.to(
+                device), labels.to(device), label_masks.to(device)
             batch, time = labels.shape[:2]
-            # probs, counting_preds, word_loss, counting_loss = model(images, image_masks, labels, label_masks, is_train=False)
-            probs, counting_preds, word_loss, counting_loss, _ = model(images, image_masks, labels, label_masks, labels2, label_masks2, is_train=False)
+            probs, counting_preds, word_loss, counting_loss= model(images, image_masks, labels, label_masks, is_train=False)
 
             word_loss = word_loss.mean()
             counting_loss = counting_loss.mean()
-            # counting_loss2 = counting_loss2.mean()
             loss = word_loss + counting_loss
             loss_meter.add(loss.item())
 
@@ -101,7 +95,6 @@ def eval(params, model, epoch, eval_loader, writer=None):
                 current_step = epoch * len(eval_loader) // params['valid_parts'] + batch_idx + 1
                 writer.add_scalar('eval/word_loss', word_loss.item(), current_step)
                 writer.add_scalar('eval/counting_loss', counting_loss.item(), current_step)
-                # writer.add_scalar('eval/counting_loss2', counting_loss2.item(), current_step)
                 writer.add_scalar('eval/loss', loss.item(), current_step)
                 writer.add_scalar('eval/WordRate', wordRate, current_step)
                 writer.add_scalar('eval/ExpRate', ExpRate, current_step)

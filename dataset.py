@@ -86,7 +86,6 @@ def collate_fn(batch_images):
 
     images, image_masks = torch.zeros((len(proper_items), channel, max_height, max_width)), torch.zeros((len(proper_items), 1, max_height, max_width))  # [bch'w']、[b1h'w']
     labels, labels_masks = torch.zeros((len(proper_items), max_length)).long(), torch.zeros((len(proper_items), max_length))  # [b, l']
-    labels2, labels_masks2 = torch.ones((len(proper_items), max_length)).long(), torch.zeros((len(proper_items), max_length))  # [b, l']
 
     for i in range(len(proper_items)):
         _, h, w = proper_items[i][0].shape  # 该batch第i个图片形状，channel数不需要用到
@@ -95,13 +94,7 @@ def collate_fn(batch_images):
         length = proper_items[i][1].shape[0]  # 该batch的label的长度
         labels[i][:length] = proper_items[i][1]  # label贴到对应的全零label[b, l']中        [11,12,13,14,0,  0,0,0,0]
         labels_masks[i][:length] = 1  # 有label的部分mask为1
-        # print(labels[i])
-        labels2[i][:length - 1] = torch.flip(proper_items[i][1][:-1], [0])  # reverse label  [14,13,12,11,  1,1,1,1,1]
-        labels_masks2[i][:length] = 1  # 有label的部分mask为1
-        # labels2[i] = torch.flip(labels[i], [0])  # reverse label  [0,0,0,0,0,14,13,12,11]
-        # labels_masks2[i] = torch.flip(labels_masks[i], [0])
-        # print(labels2[i])
-    return images, image_masks, labels, labels_masks, labels2, labels_masks2
+    return images, image_masks, labels, labels_masks
 
 
 class Words:
