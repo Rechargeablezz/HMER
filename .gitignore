@@ -10,3 +10,6 @@ AttDecoder_bad_case.json
 bad_case.txt
 datasets/
 .vscode/
+error.*
+output.*
+jsub_logs/
