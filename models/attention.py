@@ -34,5 +34,6 @@ class Attention(nn.Module):
             energy_exp = energy_exp * image_mask.squeeze(1)
         alpha = energy_exp / (energy_exp.sum(-1).sum(-1)[:, None, None] + 1e-10)
         alpha_sum = alpha[:, None, :, :] + alpha_sum
-        context_vector = (alpha[:, None, :, :] * cnn_features).sum(-1).sum(-1)
+        context_vector = (alpha[:, None, :, :] * cnn_features).sum(-1).sum(-1)  # [bchw] -> [b, c]
+
         return context_vector, alpha, alpha_sum
