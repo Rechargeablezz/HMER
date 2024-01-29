@@ -92,13 +92,14 @@ class AttDecoder(nn.Module):
         self.word_convert = nn.Linear(self.hidden_size, self.word_num)
         self.word_convert2 = nn.Linear(self.hidden_size, self.word_num)
 
-        self.relu = nn.ReLU()
+        self.relu = nn.LeakyReLU(0.01)
         if params['dropout']:
             self.dropout = nn.Dropout(params['dropout_ratio'])
 
     def forward(self, cnn_features, labels, labels2, counting_preds, images_mask, labels_mask, labels_mask2, is_train=True):
         batch_size, num_steps = labels.shape  # [b, l']
         height, width = cnn_features.shape[2:]  # [h", w"]
+        counting_preds2 = counting_preds.clone().detach()
         word_probs = torch.zeros((batch_size, num_steps, self.word_num)).to(device=self.device)  # [b, l', len(words) = 111]  初始化为全0
         word_probs2 = torch.ones((batch_size, num_steps, self.word_num)).to(device=self.device)
 
@@ -113,8 +114,8 @@ class AttDecoder(nn.Module):
         hidden = self.init_hidden(cnn_features, images_mask, self.init_weight)   # [b, 256]  初始化hidden
         hidden2 = self.init_hidden(cnn_features, images_mask, self.init_weight2)
 
-        counting_context_weighted = self.counting_context_weight(counting_preds)        # C：[b, 111]  ==>  [b, 256]
-        counting_context2_weighted = self.counting_context_weight(counting_preds)
+        counting_context_weighted_dyn = self.counting_context_weight(counting_preds)        # C：[b, 111]  ==>  [b, 256]
+        counting_context_weighted_dyn2 = self.counting_context_weight(counting_preds2)
 
         cnn_features_trans = self.encoder_feature_conv(cnn_features)     # [b, 684, h", w"] ==> [b, 512, h", w"]    T
         position_embedding = PositionEmbeddingSine(256, normalize=True)     # 512/2
@@ -130,9 +131,9 @@ class AttDecoder(nn.Module):
                 hidden2 = self.word_input_gru2(word_embedding2, hidden2)
 
                 word_context_vec, word_alpha, word_alpha_sum = self.word_attention(cnn_features, cnn_features_trans, hidden,
-                                                                                   word_alpha_sum, images_mask)
+                                                                                   word_alpha_sum, counting_context_weighted_dyn, images_mask)
                 word_context_vec2, word_alpha2, word_alpha_sum2 = self.word_attention2(cnn_features, cnn_features_trans, hidden2,
-                                                                                       word_alpha_sum2, images_mask)
+                                                                                       word_alpha_sum2, counting_context_weighted_dyn2, images_mask)
 
                 hidden = self.word_output_gru(word_context_vec, hidden)
                 hidden2 = self.word_output_gru2(word_context_vec2, hidden2)
@@ -148,12 +149,12 @@ class AttDecoder(nn.Module):
 
                 if self.params['dropout']:
                     word_out_state = self.dropout(current_state + word_weighted_embedding +
-                                                  word_context_weighted + counting_context_weighted)
+                                                  word_context_weighted + counting_context_weighted_dyn)
                     word_out_state2 = self.dropout(current_state2 + word_weighted_embedding2 +
-                                                   word_context_weighted2 + counting_context2_weighted)
+                                                   word_context_weighted2 + counting_context_weighted_dyn2)
                 else:
-                    word_out_state = current_state + word_weighted_embedding + word_context_weighted + counting_context_weighted
-                    word_out_state2 = current_state2 + word_weighted_embedding2 + word_context_weighted2 + counting_context2_weighted
+                    word_out_state = current_state + word_weighted_embedding + word_context_weighted + counting_context_weighted_dyn
+                    word_out_state2 = current_state2 + word_weighted_embedding2 + word_context_weighted2 + counting_context_weighted_dyn2
 
                 word_prob = self.word_convert(word_out_state)   # [b, 256] --> [b, 111]
                 word_prob2 = self.word_convert2(word_out_state2)
@@ -164,10 +165,15 @@ class AttDecoder(nn.Module):
                 word_alphas[:, i] = word_alpha
                 word_alphas2[:, i] = word_alpha2
 
-                # probs = torch.softmax(word_probs, dim=-1)
-                # probs_sum = torch.sum(probs, dim=1)
-                # counting_preds = self.relu(counting_preds - probs_sum)
-                # counting_context_weighted = self.counting_context_weight(counting_preds)
+                probs = torch.softmax(word_probs, dim=-1)
+                probs_sum = torch.sum(probs, dim=1)
+                counting_preds = self.relu(counting_preds - probs_sum)
+                counting_context_weighted_dyn = self.counting_context_weight(counting_preds)
+
+                probs2 = torch.softmax(word_probs2, dim=-1)
+                probs_sum2 = torch.sum(probs2, dim=1)
+                counting_preds2 = self.relu(counting_preds2 - probs_sum2)
+                counting_context_weighted_dyn2 = self.counting_context_weight(counting_preds2)
 
             return word_probs, word_alphas, word_alpha_sum, word_probs2, word_alphas2, word_alpha_sum2
         else:
@@ -175,16 +181,16 @@ class AttDecoder(nn.Module):
             for i in range(num_steps):
                 hidden = self.word_input_gru(word_embedding, hidden)
                 word_context_vec, word_alpha, word_alpha_sum = self.word_attention(cnn_features, cnn_features_trans, hidden,
-                                                                                   word_alpha_sum, images_mask)
+                                                                                   word_alpha_sum, counting_context_weighted_dyn, images_mask)
                 hidden = self.word_output_gru(word_context_vec, hidden)
                 current_state = self.word_state_weight(hidden)
                 word_weighted_embedding = self.word_embedding_weight(word_embedding)
                 word_context_weighted = self.word_context_weight(word_context_vec)
 
                 if self.params['dropout']:
-                    word_out_state = self.dropout(current_state + word_weighted_embedding + word_context_weighted + counting_context_weighted)
+                    word_out_state = self.dropout(current_state + word_weighted_embedding + word_context_weighted + counting_context_weighted_dyn)
                 else:
-                    word_out_state = current_state + word_weighted_embedding + word_context_weighted + counting_context_weighted
+                    word_out_state = current_state + word_weighted_embedding + word_context_weighted + counting_context_weighted_dyn
 
                 word_prob = self.word_convert(word_out_state)
                 _, word = word_prob.max(1)
@@ -192,10 +198,10 @@ class AttDecoder(nn.Module):
                 word_probs[:, i] = word_prob
                 word_alphas[:, i] = word_alpha
 
-                # probs = torch.softmax(word_probs, dim=-1)
-                # probs_sum = torch.sum(probs, dim=1)
-                # counting_preds = self.relu(counting_preds - probs_sum)
-                # counting_context_weighted = self.counting_context_weight(counting_preds)
+                probs = torch.softmax(word_probs, dim=-1)
+                probs_sum = torch.sum(probs, dim=1)
+                counting_preds = self.relu(counting_preds - probs_sum)
+                counting_context_weighted_dyn = self.counting_context_weight(counting_preds)
 
             return word_probs, word_alphas, word_alpha_sum, None, None, None
 
